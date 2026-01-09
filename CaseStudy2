@@ -1,0 +1,99 @@
+import org.apache.spark.SparkContext
+import org.apache.spark.SparkConf
+import org.apache.spark.sql.functions._
+import org.apache.spark.sql.types._
+import org.apache.spark.sql.{Row, SaveMode, SparkSession, DataFrame}
+import org.apache.spark.sql.streaming.OutputMode
+
+
+val conf = new SparkConf().setAppName("RDDExample").setMaster("local[*]")
+
+val spark: SparkSession = SparkSession.builder.master("local").
+ getOrCreate
+
+val sc = spark.sparkContext 
+
+val schema = StructType(Array(
+      StructField("paper_id", IntegerType, true),
+      StructField("Title", StringType, true),
+      StructField("author_id", IntegerType, true),
+      StructField("author_name", StringType, true),
+      StructField("journal_name", StringType, true),
+      StructField("journal_id", IntegerType, true),
+      StructField("publication_date", StringType, true),
+      StructField("citation_count", IntegerType, true),
+      StructField("paper_status", StringType, true),
+      StructField("doi", StringType, true),
+      StructField("keywords", StringType, true),
+      StructField("abstract", StringType, true),
+      StructField("reference_count", StringType, true),
+      StructField("research_field", StringType, true)
+    
+    ))
+
+// Extraction
+
+// Bootup - static load
+
+var df1 = spark.read.format("csv").option("header", "true")      
+  .schema(schema)
+  .load("hdfs://master:9000/tmp/soumen/casestudy2/editorial_papers_data.csv");
+df1.show()
+val df2 = df1.groupBy("author_name").agg(sum("citation_count").as("total_amount"))
+df2.show()
+
+// var df2 = spark.read.format("csv").option("header", "true")      
+//   .schema(schema)
+//   .load("hdfs://master:9000/tmp/soumen/casestudy2/editorial_papers_data.csv"); 
+
+// Streaming
+// var df3 = spark.readStream.format("csv").option("header", "true")      
+//   .schema(schema)  
+//   .load("hdfs://master:9000/tmp/soumen/stream/data");
+
+// Transformation
+
+// df1 = df2.dropDuplicates()
+// df2 = df2.dropDuplicates()
+
+// df3.dropDuplicates()
+
+// Loading
+// import spark.implicits._
+// import spark.sql
+
+// val dfk = sql("DROP TABLE IF EXISTS paper_details_table4")
+// dfk.show()
+
+// df1.write.mode(SaveMode.Overwrite).partitionBy("paper_status").saveAsTable("paper_details_table5");
+
+// // val hiveDF = sql("select count(*) from paper_details_table4")
+// // hiveDF.show()
+
+// // df2.write.mode(SaveMode.Append).partitionBy("paper_status").saveAsTable("paper_details_table4");
+// // val hiveDF1 = sql("select count(*) from paper_details_table4")
+// // hiveDF1.show()
+
+// val hiveDF2 = sql("select count(Title) as no_citations, author_name from paper_details_table5 group by author_name order by no_citations")
+// hiveDF2.show()
+
+// def writeBatchToHive(batchDF: DataFrame, batchId: Long): Unit = {
+    
+//       // Any T has to be done here
+    
+//       batchDF.dropDuplicates()
+//       batchDF.write
+//         .mode(SaveMode.Append)
+//         .insertInto("paper_details_table4") 
+      
+//      val hiveDF3 = sql("select count(*) from paper_details_table4")
+//      hiveDF3.show()
+//     }
+
+// // val q = df3.writeStream
+// //       .outputMode(OutputMode.Append()) 
+// //       .foreachBatch(writeBatchToHive _)
+// //       .option("checkpointLocation", "hdfs://master:9000/tmp/soumen/stream/checkpoint") 
+// //       .start()
+
+// // q.awaitTermination()
