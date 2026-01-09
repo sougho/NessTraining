@@ -1,0 +1,102 @@
+// This is an Example of a ETL pipeline using spark
+// We load a set of raw transactions data, do transformations and load in three different tables to query
+
+// Init
+
+import org.apache.spark.SparkContext
+import org.apache.spark.SparkConf
+import org.apache.spark.sql.functions._
+import org.apache.spark.sql.types._
+import org.apache.spark.sql.SaveMode
+
+
+val conf = new SparkConf().setAppName("RDDExample").setMaster("local[*]")
+//val sc = new SparkContext(conf)
+
+val spark: SparkSession = SparkSession.builder.master("local").getOrCreate
+val sc = spark.sparkContext 
+
+// Schema
+
+val schema = StructType(Array(
+      StructField("transaction_id", StringType, true),
+      StructField("customer_id", StringType, true),
+      StructField("timestamp", StringType, true),
+      StructField("amount", StringType, true),
+      StructField("transaction_type", StringType, true),
+      StructField("status", StringType, true),
+      StructField("region", StringType, true),
+      StructField("product_category", StringType, true),
+      StructField("payment_method", StringType, true) 
+    
+    ))
+
+// Read source and create DataFrame
+
+// val df1 = spark.read.format("csv").option("header", "true")      
+//   .schema(schema)  
+//   .load("hdfs://master:9000/tmp/lab1/transactions_data.csv");
+
+val df1 = spark.readStream.format("csv").option("header", "true")      
+  .schema(schema)  
+  .load("hdfs://master:9000/tmp/lab1/data");
+
+val df2 = spark.read.format("csv").option("header", "true")      
+  .schema(
+      StructType(Array(
+            StructField("status", StringType, true), 
+            StructField("short_status", StringType, true)
+                ))
+         )
+  .load("hdfs://master:9000/tmp/lab1/result_abbr.csv");
+
+// Transform
+val df3 = df1.select($"transaction_id", $"customer_id", $"amount" * 89 as "inr_amount", $"status", $"region", $"product_category",
+                    $"payment_method")
+val df4 = df3.join(df2, "status")
+
+val df5 = df4.dropDuplicates()
+
+// Load
+
+// Summary by Location
+val df6 = df5.groupBy("region").agg(sum("inr_amount").as("total_amount"))
+
+// df6.write
+//   .format("csv")
+//   .option("header", "true")  
+//   .mode(SaveMode.Overwrite)
+//   .csv("hdfs://master:9000/tmp/lab1/location_amount.csv") 
+
+// val df7 = spark.read.format("csv").option("header", "false")
+//   .option("header", "true")
+//   .option("inferSchema", "true")
+//   .load("hdfs://master:9000/tmp/lab1/location_amount.csv");
+
+// df7.show()
+
+// Summary by category, divided into region
+
+val df8 = df5.groupBy("product_category", "region").agg(sum("inr_amount").as("total_amount"))
+
+// df8.write
+//   .format("csv")
+//   .option("header", "true")  
+//   .mode(SaveMode.Overwrite)
+//   .csv("hdfs://master:9000/tmp/lab1/location_amount.csv") 
+
+// val df9 = spark.read.format("csv").option("header", "false")
+//   .option("header", "true")
+//   .option("inferSchema", "true")
+//   .load("hdfs://master:9000/tmp/lab1/location_amount.csv");
+
+// df9.show()
+
+val df10 = df8.writeStream
+  .outputMode("update") 
+  .format("console")
+  .start()
+
+df10.awaitTermination();
+
+// END //
