@@ -1,0 +1,77 @@
+import org.apache.spark.SparkContext
+import org.apache.spark.SparkConf
+import org.apache.spark.sql.functions._
+import org.apache.spark.sql.types._
+
+
+val conf = new SparkConf().setAppName("RDDExample").setMaster("local[*]")
+//val sc = new SparkContext(conf)
+
+val spark: SparkSession = SparkSession.builder.master("local").getOrCreate
+val sc = spark.sparkContext 
+
+// ----- RDD OPS EX ---//
+
+// val data = Seq(1, 2, 3, 4, 5)
+
+// val rdd = sc.parallelize(data)
+// // rdd lineage 1. Read from seq
+// println(s"Original RDD: ${rdd.collect().mkString(", ")}")
+// // Execute - 1. Read from seq 2. Collect
+
+
+// val squaredRdd = rdd.map(x => x * x)
+// //squreRdd lineage : 1. Read from Seq 2. Run Map 3. Collect
+// println(s"Squared RDD: ${squaredRdd.collect().mkString(", ")}")
+
+
+// val df = rdd.toDF();
+// df.filter(col("value") > 1).explain();
+
+// // ----- END -----//
+
+// //df.write.parquet("/tmp/abc.parquet");
+
+// Spark Streaming
+
+// Schema Mandator for streaming
+
+val schema = StructType(Array(
+      StructField("transaction_id", StringType, true),
+      StructField("customer_id", StringType, true),
+      StructField("timestamp", StringType, true),
+      StructField("amount", StringType, true),
+      StructField("transaction_type", StringType, true),
+      StructField("status", StringType, true),
+      StructField("region", StringType, true),
+      StructField("product_category", StringType, true),
+      StructField("payment_method", StringType, true) 
+    
+    ))
+
+val df1 = spark.readStream.format("csv").option("header", "true")      
+  .schema(schema)  
+  .load("hdfs://master:9000/tmp/lab1/data");
+
+df1.printSchema();
+
+// val query = df1.writeStream
+//       .outputMode("append") 
+//       .format("console") 
+//       .option("checkpointLocation", "hdfs://master:9000/tmp/lab1/checkpoint") 
+//      .start()
+
+val query1 = df1.groupBy("transaction_type").agg(sum("amount").as("total_amount"))
+
+val query = query1.writeStream
+  .outputMode("update") 
+  .format("console")
+  .start()
+
+query.awaitTermination();
+
+// println("End");
+
+
+
+
