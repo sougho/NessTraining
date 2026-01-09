@@ -1,0 +1,37 @@
+import org.apache.spark.SparkContext
+import org.apache.spark.SparkConf
+import org.apache.spark.sql.functions._
+import org.apache.spark.sql.types._
+
+
+val conf = new SparkConf().setAppName("RDDExample").setMaster("local[*]")
+val spark: SparkSession = SparkSession.builder.master("local").getOrCreate
+val sc = spark.sparkContext 
+spark.sparkContext.setLogLevel("ERROR")
+
+val schema = StructType(Seq(
+    StructField("EmpID", IntegerType, true),
+    StructField("MGRID", IntegerType, true),
+    StructField("Name", StringType, true),
+    StructField("Dept", StringType, true),
+    StructField("Salary", IntegerType, true),
+    
+  ))
+
+val kafkaStreamDF = spark.readStream
+    .format("kafka")
+    .option("kafka.bootstrap.servers", "master:9092") 
+    .option("subscribe", "emptopic") 
+    .option("startingOffsets", "earliest") 
+    .load()
+
+val processedDF = kafkaStreamDF
+    .select(from_json(col("value").cast("string"), schema) as "data")
+    .select("data.*")
+
+val query = processedDF.writeStream
+    .outputMode("append") 
+    .format("console") 
+    .start()
+
+  query.awaitTermination()
